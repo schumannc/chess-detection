@@ -1,0 +1,4 @@
+ipykernel==7.1.0
+gradio==6.1.0
+supervision==0.27.0
+chess==1.11.2
