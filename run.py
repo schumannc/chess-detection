@@ -2,6 +2,7 @@ from typing import Tuple, Any
 import supervision as sv
 import gradio as gr
 import  numpy as np 
+import chess
 import cv2
 from copy import deepcopy
 from PIL import Image
@@ -10,6 +11,7 @@ from chess_detection import (
     render_board,
     calibrate_board,
     track_movements,
+    update_board
 )
 
 
@@ -17,13 +19,13 @@ from chess_detection import (
 with gr.Blocks() as demo:
     gr.Markdown("### Chessboard calibration: freeze a frame, then click corners")
 
-    state_points = gr.State([])
-    state_prev_bboxes = gr.State([]) # Track previous bboxes
-    state_matches = gr.State({})
+    state_points = gr.State([]) # Store calibration points
+    state_positions = gr.State([])  # Track piece positions
+    state_board = gr.State(chess.Board())
 
     with gr.Row():
         with gr.Column():
-            cam = gr.Image(label="Input", sources="webcam")
+            cam = gr.Image(label="Input", sources="webcam", streaming=True, webcam_options=gr.WebcamOptions(mirror=False))
             live = gr.Image(label="Live output (streaming)")
         with gr.Column():
             frozen = gr.Image(label="Frozen frame (click here)", interactive=False)
@@ -32,11 +34,18 @@ with gr.Blocks() as demo:
 
         cam.stream(
             track_movements, 
-            [cam, state_prev_bboxes], 
-            [live, state_prev_bboxes, state_matches], 
+            [cam, state_points], 
+            [live, state_positions], 
             stream_every=0.5, 
             time_limit=15, 
             concurrency_limit=1
+        )
+
+        # Update board
+        state_positions.change(
+            update_board,
+            [state_positions, state_board],
+            [board, state_board]
         )
         
         # Reset

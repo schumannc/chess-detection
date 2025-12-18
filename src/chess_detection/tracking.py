@@ -4,10 +4,11 @@ import supervision as sv
 from PIL import Image
 from .config import (
     COLOR_PALETTE,
-    BBOX_MATCH_DISTANCE_THRESHOLD
+    BBOX_MATCH_DISTANCE_THRESHOLD,
 )
 
 from .detection import detect_chess_pieces
+from .calibration import grid_centers
 
 
 def bbox_bottom_middle(bbox: list[float]) -> tuple[float, float]:
@@ -15,71 +16,47 @@ def bbox_bottom_middle(bbox: list[float]) -> tuple[float, float]:
     return (x1 + x2) / 2, y2
 
 
-def bbox_distance(bbox1: list[float], bbox2: list[float]) -> float:
-    c1 = bbox_bottom_middle(bbox1)
-    c2 = bbox_bottom_middle(bbox2)
+def bbox_distance(bbox: list[float], center: list[float]) -> float:
+    c1 = bbox_bottom_middle(bbox)
+    c2 = center
     return np.sqrt((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2)
 
 
-def match_bboxes(prev_bboxes: list[list[float]], curr_bboxes: list[list[float]]) -> dict[int, int]:
-    matches = {}
-    used_prev = set()
+def match_positions(bbox: list[list[float]], centers: list[list[float]]) -> list[list[bool]]:
+    matches = [False for _ in range(len(centers))]
+    used_centers = set()
 
-    if not prev_bboxes:
-        return {i: -1 for i in range(len(curr_bboxes))}
-
-    for curr_idx, curr_bboxes in enumerate(curr_bboxes):
-        best_match = -1
-        min_distance = BBOX_MATCH_DISTANCE_THRESHOLD
-        for prev_idx, prev_bbox in enumerate(prev_bboxes):
-            if prev_idx in used_prev:
+    for b in bbox:
+        best_center_idx: Optional[int] = None
+        best_distance = float('inf')
+        for idx, c in enumerate(centers):
+            if idx in used_centers:
                 continue
-            
-            dist = bbox_distance(curr_bboxes, prev_bbox)
-            if dist < min_distance:
-                best_match = prev_idx
-                min_distance = dist
-
-        if best_match != -1:
-            used_prev.add(best_match)
-
-        matches[curr_idx] = best_match
+            dist = bbox_distance(b, c)
+            if dist < best_distance:
+                best_distance = dist
+                best_center_idx = idx
+        if best_center_idx is not None and best_distance < BBOX_MATCH_DISTANCE_THRESHOLD:
+            matches[best_center_idx] = True
+            used_centers.add(best_center_idx)
         
     return matches    
 
 
-def track_movements(img, prev_bboxes: Any):
+def track_movements(img, points: list[list[float]]):
     annotated_img, detections = detect_chess_pieces(img)
 
     if detections is not None and len(detections) > 0:
         bbox = detections.xyxy
-        curr_bbox = bbox.tolist()
+        bbox = bbox.tolist()
     else:
-        curr_bbox = []
+        bbox = []
 
-    matches = match_bboxes(prev_bboxes, curr_bbox)
-
-    # Annotad moved pieces
-    for curr_idx, prev_idx in matches.items():
-        if prev_idx != -1:
-            continue
-        
-        image = Image.fromarray(annotated_img).convert("RGB")
-        text_scale = sv.calculate_optimal_text_scale(resolution_wh=image.size)
-
-        label_annotator = sv.LabelAnnotator(
-            color=COLOR_PALETTE,
-            color_lookup=sv.ColorLookup.INDEX,
-            text_scale=text_scale,
-            text_padding=5,
-            text_color=sv.Color.BLACK,
-            text_thickness=1
-        )
-
-        annotated_img = label_annotator.annotate(
-            scene=annotated_img,
-            detections=detections[[curr_idx]],
-            labels=["moved"]
-        )
-
-    return annotated_img, curr_bbox, matches
+    if len(points) < 4:
+        # Not calibrated yet
+        return annotated_img, []
+    
+    centers = grid_centers(points)
+    positions = match_positions(bbox, centers)
+    
+    return annotated_img, positions

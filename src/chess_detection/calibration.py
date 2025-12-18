@@ -48,12 +48,37 @@ def build_dst_grid(points: list[list[float]]) -> np.ndarray:
     H = cv2.getPerspectiveTransform(src, dst)
     src_grid = np.array([[[x,y] for x in range(BOARD_GRID_SIZE)] for y in range(BOARD_GRID_SIZE)], dtype=np.float32)
     dst_grid = cv2.perspectiveTransform(src_grid.reshape(-1,1,2), H).reshape(BOARD_GRID_SIZE,BOARD_GRID_SIZE,2)
-    return dst_grid.reshape(-1, 2)
+    # Fix orientation: top-left → bottom-right (row-major)
+    dst_grid = np.rot90(dst_grid, k=1)
+    xy = dst_grid.reshape(-1, 2)
+    return xy
+
+
+def grid_centers(points: list[list[float]]) -> list[list[float]]:
+    xy = build_dst_grid(points)
+    centers = []
+    for r in range(BOARD_GRID_SIZE - 1):
+        for c in range(BOARD_GRID_SIZE - 1):
+            idx1 = r * BOARD_GRID_SIZE + c
+            idx2 = r * BOARD_GRID_SIZE + (c + 1)
+            idx3 = (r + 1) * BOARD_GRID_SIZE + c
+            idx4 = (r + 1) * BOARD_GRID_SIZE + (c + 1)
+            p1 = xy[idx1]
+            p2 = xy[idx2]
+            p3 = xy[idx3]
+            p4 = xy[idx4]
+            center_x = (p1[0] + p2[0] + p3[0] + p4[0]) / 4.0
+            center_y = (p1[1] + p2[1] + p3[1] + p4[1]) / 4.0
+            centers.append([center_x, center_y])
+    
+    return centers
 
 
 def annotate_grid(img, points: list[list[float]]):
     xy = build_dst_grid(points)
-    key_points = sv.KeyPoints(xy=xy[np.newaxis, ...])
+    centers = grid_centers(points)
+    centers_key_points = sv.KeyPoints(xy=np.array(centers)[np.newaxis, ...])
+    edges_key_points = sv.KeyPoints(xy=xy[np.newaxis, ...])
     edges = build_chessboard_edges(9)
 
     edge_annotator = sv.EdgeAnnotator(
@@ -61,11 +86,20 @@ def annotate_grid(img, points: list[list[float]]):
         thickness=2, 
         edges=edges
      )
+    
+    vertex_annotator = sv.VertexAnnotator(
+        color=sv.Color.from_hex("#FF1453"),
+        radius=5
+    )
 
     annotated_img = img.copy()
     annotated_img = edge_annotator.annotate(
         scene=annotated_img,
-        key_points=key_points
+        key_points=edges_key_points
+    )
+    annotated_img = vertex_annotator.annotate(
+        scene=annotated_img,
+        key_points=centers_key_points
     )
     return annotated_img
 

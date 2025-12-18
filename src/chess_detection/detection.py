@@ -79,6 +79,5 @@ def detect_chess_pieces(img) -> Tuple[np.ndarray, sv.Detections]:
     detections = from_sam(sam_result=inference_state)
     detections = detections[detections.confidence > DEFAULT_CONFIDENCE_THRESHOLD]
 
-    print(f"There are {len(detections)} {DETECTION_PROMPT} objects detected in the image.\n")
     annotated_image = annotate(image, detections, label=None)
     return np.array(annotated_image), detections

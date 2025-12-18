@@ -2,7 +2,7 @@ from supervision import ColorPalette
 
 
 # Model configuration
-DEFAULT_CONFIDENCE_THRESHOLD = 0.45
+DEFAULT_CONFIDENCE_THRESHOLD = 0.5
 DETECTION_PROMPT = "chess pieces"
 
 # Visualization
