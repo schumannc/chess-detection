@@ -10,10 +10,13 @@ import numpy as np
 from PIL import Image
 
 from .config import (
-    COLOR_PALETTE,
+    COLOR_PALETTE_HEX,
     DEFAULT_CONFIDENCE_THRESHOLD,
     DETECTION_PROMPT
 )
+
+COLOR_PALETTE = sv.ColorPalette.from_hex(COLOR_PALETTE_HEX)
+
 
 # Sam3Processor runs the backbone in bfloat16 but never enters an autocast context
 # itself (unlike sam3's video predictors, which carry their own `bf16_context`), so
