@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chess-detection:latest
+    env_file: .env
+    environment:
+      GRADIO_SERVER_NAME: "0.0.0.0"
+      GRADIO_SERVER_PORT: "7860"
+    gpus: all
+    ports:
+      - "7860:7860"
+    volumes:
+      # The working tree is live inside the container: edit on the host,
+      # the change is there immediately.
+      - .:/app
+      # SAM3 weights survive rebuilds.
+      - hf-cache:/cache/huggingface
+    stdin_open: true
+    tty: true
+    command: python run.py
+
+volumes:
+  hf-cache:

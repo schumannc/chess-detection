@@ -1,0 +1,14 @@
+.git
+.gitignore
+.devcontainer
+.env
+*.env
+!.env.example
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+notebooks/
+assets/
+README.md
+CLAUDE.md

@@ -15,8 +15,18 @@ from .config import (
     DETECTION_PROMPT
 )
 
+# Sam3Processor runs the backbone in bfloat16 but never enters an autocast context
+# itself (unlike sam3's video predictors, which carry their own `bf16_context`), so
+# the caller has to. Without it the first Linear dies with
+# "mat1 and mat2 must have the same dtype, but got BFloat16 and Float".
+AUTOCAST_DEVICE = "cuda"
+AUTOCAST_DTYPE = torch.bfloat16
 
 if gr.NO_RELOAD:
+    # Same tf32 setup as sam3's own example notebook.
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
     MODEL = build_sam3_image_model()
     PROCESSOR = Sam3Processor(MODEL, confidence_threshold=0.3)
 
@@ -73,8 +83,10 @@ def from_sam(sam_result: dict) -> sv.Detections:
 
 def detect_chess_pieces(img) -> Tuple[np.ndarray, sv.Detections]:
     image = Image.fromarray(img).convert("RGB")
-    inference_state = PROCESSOR.set_image(image)
-    inference_state = PROCESSOR.set_text_prompt(state=inference_state, prompt=DETECTION_PROMPT)
+
+    with torch.autocast(AUTOCAST_DEVICE, dtype=AUTOCAST_DTYPE):
+        inference_state = PROCESSOR.set_image(image)
+        inference_state = PROCESSOR.set_text_prompt(state=inference_state, prompt=DETECTION_PROMPT)
 
     detections = from_sam(sam_result=inference_state)
     detections = detections[detections.confidence > DEFAULT_CONFIDENCE_THRESHOLD]
